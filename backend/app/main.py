@@ -1,32 +1,100 @@
-# backend/app/main.py
 import os
 import json
 import logging
+import time
 from datetime import datetime
 from typing import Optional
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Request
+from pydantic import BaseModel, constr
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 
-
-# Импорт модели
-from models.model_v2_2 import IntelligentSupportSystem
+# Импорт утилит и сервисов
+from .logging_utils import setup_logging, log_execution_time_async, get_structured_logger
+from .config import settings
+from .services.model_service import model_service, ModelService
+from .dependencies import get_model_service
+from .monitoring import metrics_collector, record_request_metric, get_health_status
+from .auth import verify_admin_token, get_current_admin_user, get_admin_key
+from .rate_limiter import check_rate_limit
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+log_file_path = setup_logging()
+logger = get_structured_logger(__name__)
 
-app = FastAPI(title="AI Support Service")
+app = FastAPI(
+    title="AI Support Service",
+    description="Интеллектуальная система поддержки клиентов",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
-# Глобальная переменная для системы
-support_system = None
+# Безопасные CORS настройки (оставляем без изменений)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.get_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization", 
+        "X-Requested-With",
+        "Accept"
+    ],
+    expose_headers=["Content-Length", "X-Request-ID"],
+    max_age=600,
+)
 
-# Модели запросов/ответов
+# Security middleware (enhanced)
+@app.middleware("http")
+async def security_headers_middleware(request, call_next):
+    response = await call_next(request)
+    
+    # Security headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    
+    # Remove server information (skip for now to avoid MutableHeaders issues)
+    # if "server" in response.headers:
+    #     del response.headers["server"]
+    
+    # Add rate limit headers if available
+    if hasattr(request.state, 'rate_limit_remaining'):
+        response.headers["X-RateLimit-Limit"] = "10"
+        response.headers["X-RateLimit-Remaining"] = str(request.state.rate_limit_remaining)
+        response.headers["X-RateLimit-Reset"] = str(request.state.rate_limit_reset)
+    
+    return response
+
+# Timeout middleware (оставляем без изменений)
+@app.middleware("http") 
+async def timeout_middleware(request, call_next):
+    try:
+        return await asyncio.wait_for(call_next(request), timeout=settings.api_timeout)
+    except asyncio.TimeoutError:
+        logger.warning(f"Request timeout: {request.url}")
+        raise HTTPException(status_code=504, detail="Request timeout")
+
+# Модели запросов (оставляем без изменений)
+class AnalyzeRequest(BaseModel):
+    text: constr(min_length=1, max_length=5000)
+
+class ServerFeedbackRequest(BaseModel):
+    query: constr(min_length=1, max_length=5000)
+    response: constr(min_length=1, max_length=10000)
+    rating: int
+    user_feedback: constr(max_length=2000) = ""
+    user_id: Optional[str] = None
+
 class QueryRequest(BaseModel):
-    query: str
-    user_id: str = None
-    session_id: str = None
+    query: constr(min_length=1, max_length=5000)
+    user_id: Optional[str] = None
+    session_id: Optional[str] = None
 
 class QueryResponse(BaseModel):
     response: str
@@ -34,9 +102,6 @@ class QueryResponse(BaseModel):
     confidence: float
     similar_questions: list = []
     timestamp: str
-
-class AnalyzeRequest(BaseModel):
-    text: str
 
 class FeedbackRequest(BaseModel):
     original_text: str
@@ -52,97 +117,108 @@ class FeedbackRequest(BaseModel):
     priority: str = "normal"
     timestamp: str
 
-class ServerFeedbackRequest(BaseModel):
-    query: str
-    response: str
-    rating: int
-    user_feedback: str = ""
-    user_id: str = None
-
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+# Инициализация при старте
 @app.on_event("startup")
+@log_execution_time_async
 async def startup_event():
     """Инициализация системы при запуске"""
-    global support_system
     try:
-        logger.info("Инициализация AI Support System...")
-        support_system = IntelligentSupportSystem()
+        logger.info(f"🚀 Запуск AI Support Service...")
+        logger.info(f"🌐 CORS разрешены для: {settings.get_cors_origins()}")
         
-        # Загрузка обученной модели
-        support_system.kb.load_knowledge_base('app/data/knowledge_base.json')
-        # ИЛИ обучение с нуля:
+        # Инициализируем модель
+        success = model_service.initialize()
+        if not success:
+            logger.error("❌ Не удалось инициализировать модель при запуске")
+            # Не падаем, сервис может работать в degraded mode
         
-        logger.info("AI Support System успешно инициализирована")
+        logger.info("✅ AI Support Service запущен")
+        
     except Exception as e:
-        logger.error(f"Ошибка инициализации: {e}")
-        raise
+        logger.error(f"❌ Критическая ошибка при запуске: {e}")
+        # Решаем, падать ли полностью или работать без модели
+        # В данном случае - работаем, но с ограниченной функциональностью
 
+# Endpoint'ы
 @app.get("/")
+@log_execution_time_async
 async def root():
-    return {"status": "AI Support Service is running", "timestamp": datetime.now().isoformat()}
-
-@app.get("/health")
-async def health_check():
-    """Проверка здоровья сервиса"""
     return {
-        "status": "healthy" if support_system else "unhealthy",
-        "model_loaded": support_system is not None,
+        "status": "AI Support Service is running", 
+        "model_status": model_service.get_status(),
         "timestamp": datetime.now().isoformat()
     }
 
+@app.get("/health")
+@log_execution_time_async
+@record_request_metric
+async def health_check():
+    """Проверка здоровья сервиса с детальными метриками"""
+    return get_health_status()
+
 @app.post("/analyze")
-async def analyze(req: AnalyzeRequest):
-    if not support_system:
-        raise HTTPException(status_code=503, detail="Service not initialized")
-    
+@log_execution_time_async
+@record_request_metric
+async def analyze(
+    request: Request,
+    req: AnalyzeRequest, 
+    model: ModelService = Depends(get_model_service)  # Используем dependency injection
+):
+    """Анализ запроса с обработанными ошибками"""
     try:
-        logger.info(f"Анализ запроса: {req.text}")
+        # Apply rate limiting
+        await check_rate_limit(request)
         
-        # ⬇️ ВЫЗЫВАЕМ МОДЕЛЬ В ОТДЕЛЬНОМ ПОТОКЕ ⬇️
+        logger.info(f"🔍 Анализ запроса: {req.text[:100]}...")
+        
+        # Обрабатываем запрос через сервис
+        start_time = time.time()
         result = await asyncio.get_event_loop().run_in_executor(
-            None,  # Используем стандартный executor
-            support_system.process_query,  # Синхронный метод
-            req.text  # Аргумент
+            None,
+            model.process_query,
+            req.text
         )
+        execution_time = time.time() - start_time
         
-        # Адаптируем ответ под формат
+        logger.info(f"✅ Запрос обработан за {execution_time:.3f}s")
+        
+        # Форматируем ответ
         similar_questions = [
             item['knowledge_item']['question'] 
-            for item in result['classification']['similar_items'][:3]
-        ] if 'classification' in result and 'similar_items' in result['classification'] else []
+            for item in result.get('classification', {}).get('similar_items', [])[:3]
+        ]
         
-        # Создаем рекомендацию на основе ответа
-        recommendation = result['response']
-        
-        return {
-            "category": result['classification']['main_category'],
-            "category_score": float(result['classification']['confidence']),
-            "entities": [],  # Можете добавить извлечение сущностей если нужно
-            "kb_candidates": similar_questions,  # Используем похожие вопросы как кандидаты
-            "selected_kb": {"title": result['classification']['main_category'], "template": recommendation},
-            "recommendation": recommendation
+        response_data = {
+            "category": result.get('classification', {}).get('main_category', 'Неизвестно'),
+            "category_score": float(result.get('classification', {}).get('confidence', 0.0)),
+            "entities": [],
+            "kb_candidates": similar_questions,
+            "selected_kb": {
+                "title": result.get('classification', {}).get('main_category', 'Неизвестно'), 
+                "template": result.get('response', '')
+            },
+            "recommendation": result.get('response', ''),
+            "fallback": result.get('fallback', False)
         }
         
+        return response_data
+        
     except Exception as e:
-        logger.error(f"Ошибка анализа: {e}")
-        raise HTTPException(status_code=500, detail=f"Analysis error: {str(e)}")
+        logger.error(f"❌ Неожиданная ошибка анализа: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail="Внутренняя ошибка сервера при обработке запроса"
+        )
 
 @app.post("/feedback")
-async def submit_feedback(request: ServerFeedbackRequest, background_tasks: BackgroundTasks):
-    """Сбор обратной связи для ML модели (асинхронно)"""
-    if not support_system:
-        raise HTTPException(status_code=503, detail="Service not initialized")
-    
+@log_execution_time_async
+async def submit_feedback(
+    request: ServerFeedbackRequest, 
+    background_tasks: BackgroundTasks,
+    model: ModelService = Depends(get_model_service)
+):
+    """Сбор обратной связи для ML модели"""
     try:
-        # Создаем mock result для обратной связи
         mock_result = {
             'user_query': request.query,
             'response': request.response,
@@ -151,31 +227,40 @@ async def submit_feedback(request: ServerFeedbackRequest, background_tasks: Back
         
         # Добавляем в фоновые задачи
         background_tasks.add_task(
-            support_system.collect_feedback,
+            model.collect_feedback,
             mock_result,
             request.user_feedback,
             request.rating
         )
         
-        logger.info(f"Обратная связь получена. Рейтинг: {request.rating}")
+        logger.info(f"📝 Фидбэк получен. Рейтинг: {request.rating}")
         
-        return {"status": "feedback_received", "message": "Спасибо за обратную связь!"}
+        return {
+            "status": "feedback_received", 
+            "message": "Спасибо за обратную связь!",
+            "saved": True
+        }
         
     except Exception as e:
-        logger.error(f"Ошибка сохранения обратной связи: {e}")
-        raise HTTPException(status_code=500, detail="Error saving feedback")
+        logger.error(f"❌ Ошибка обработки фидбэка: {e}")
+        # Не падаем полностью, просто сообщаем об ошибке сохранения
+        return {
+            "status": "feedback_received", 
+            "message": "Спасибо за обратную связь! (Ошибка сохранения, но мы её учтем)",
+            "saved": False
+        }
 
 @app.get("/stats")
-async def get_statistics():
+@log_execution_time_async
+async def get_statistics(model: ModelService = Depends(get_model_service)):
     """Получение статистики по модели"""
-    if not support_system:
-        raise HTTPException(status_code=503, detail="Service not initialized")
-    
     try:
-        # Здесь можно добавить сбор статистики из вашей модели
+        model_status = model.get_status()
+        
         stats = {
-            "status": "operational",
+            "status": "operational" if model_status['operational'] else "degraded",
             "model_type": "IntelligentSupportSystem",
+            "model_status": model_status,
             "timestamp": datetime.now().isoformat(),
             "features": ["classification", "response_generation", "similar_questions"]
         }
@@ -183,8 +268,31 @@ async def get_statistics():
         return stats
         
     except Exception as e:
-        logger.error(f"Ошибка получения статистики: {e}")
+        logger.error(f"❌ Ошибка получения статистики: {e}")
         raise HTTPException(status_code=500, detail="Error getting statistics")
+
+@app.get("/metrics")
+@log_execution_time_async
+async def get_metrics():
+    """Получение метрик системы"""
+    return metrics_collector.get_metrics()
+
+@app.post("/admin/reset-errors")
+async def reset_errors(admin_user = Depends(get_current_admin_user)):
+    """Административный endpoint для сброса ошибок"""
+    model_service.reset_errors()
+    return {"status": "errors_reset", "message": "Счетчик ошибок сброшен"}
+
+@app.post("/admin/reset-metrics")
+async def reset_metrics(admin_user = Depends(get_current_admin_user)):
+    """Административный endpoint для сброса метрик"""
+    metrics_collector.reset_metrics()
+    return {"status": "metrics_reset", "message": "Метрики сброшены"}
+
+@app.get("/admin/key")
+async def get_admin_api_key(admin_user = Depends(get_current_admin_user)):
+    """Get admin API key for development"""
+    return {"admin_key": get_admin_key(), "note": "Development only - remove in production"}
 
 if __name__ == "__main__":
     import uvicorn

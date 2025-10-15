@@ -1,16 +1,277 @@
-# Support Assistant
+# 🤖 AI Support Assistant
 
-Frontend: `frontend/` (index.html + app.js)
-Backend: `backend/` (FastAPI)
+Интеллектуальная система поддержки клиентов на основе передовых моделей машинного обучения. Система анализирует запросы клиентов с использованием обработки естественного языка и предоставляет автоматизированные, контекстно-зависимые ответы из комплексной базы знаний.
 
-Запуск backend:
-- python -m venv venv
-- \venv\Scripts\Activate.ps1
-- pip install -r backend/requirements.txt
-- uvicorn app.main:app --reload --port 8000
+## ✨ Возможности
 
-Frontend: 
-- открыть `frontend/index.html` в браузере.
-ИЛИ
-- в другой от бека консоли
-- python3 -m http.server 3000 --directory frontend
+- 🧠 **Интеллектуальный анализ запросов** - Продвинутая ML модель для понимания намерений клиентов
+- 📚 **Интеграция с базой знаний** - Комплексная база FAQ и решений
+- 🔍 **Семантический поиск** - Векторный поиск похожих решений
+- 🛡️ **Корпоративная безопасность** - Аутентификация, ограничение запросов и security headers
+- 📊 **Мониторинг в реальном времени** - Комплексные метрики и мониторинг здоровья системы
+- 🐳 **Контейнеризированное развертывание** - Готовность к Docker с продакшен конфигурациями
+- ⚡ **Высокая производительность** - Асинхронная обработка с временем ответа менее секунды
+
+## 🚀 Быстрый старт
+
+### Вариант 1: Развертывание через Docker (Рекомендуется)
+
+```bash
+# Клонировать репозиторий
+git clone <repository-url>
+cd support_assistant
+
+# Скопировать конфигурацию окружения
+cp env.example .env
+# Отредактировать .env с вашими настройками
+
+# Запустить полный стек
+docker-compose up -d
+
+# Доступ к приложению
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:8000
+# Документация API: http://localhost:8000/docs
+```
+
+### Вариант 2: Локальная разработка
+
+#### Предварительные требования
+- Python 3.12+
+- Node.js (опционально, для разработки фронтенда)
+
+#### Настройка бекенда
+
+```bash
+# Перейти в директорию бекенда
+cd backend
+
+# Создать виртуальное окружение
+python -m venv venv
+
+# Активировать виртуальное окружение
+# На Windows:
+venv\Scripts\activate
+# На Linux/Mac:
+source venv/bin/activate
+
+# Установить зависимости
+pip install -r requirements.txt
+
+# Запустить сервер бекенда
+uvicorn app.main:app --reload --port 8000
+```
+
+#### Настройка фронтенда
+
+```bash
+# Вариант 1: Открыть напрямую в браузере
+# Перейти в frontend/index.html и открыть в браузере
+
+# Вариант 2: Использовать Python HTTP сервер
+cd frontend
+python3 -m http.server 3000
+
+# Доступ по http://localhost:3000
+```
+
+#### Использование скрипта запуска
+
+```bash
+# Сделать скрипт исполняемым (Linux/Mac)
+chmod +x start.sh
+
+# Запустить приложение
+./start.sh
+```
+
+## 🌐 Точки доступа
+
+| Сервис | URL | Описание |
+|--------|-----|----------|
+| **Frontend** | http://localhost:3000 | Пользовательский интерфейс |
+| **Backend API** | http://localhost:8000 | REST API |
+| **Документация API** | http://localhost:8000/docs | Интерактивная документация API |
+| **Проверка здоровья** | http://localhost:8000/health | Статус здоровья системы |
+| **Метрики** | http://localhost:8000/metrics | Метрики производительности |
+
+## 🔧 Конфигурация
+
+### Переменные окружения
+
+Создайте файл `.env` на основе `env.example`:
+
+```bash
+# Окружение приложения
+ENVIRONMENT=development
+LOG_LEVEL=INFO
+
+# Безопасность
+ADMIN_API_KEY=your-secure-admin-key-here
+CORS_ORIGINS=http://localhost:3000,https://yourdomain.com
+
+# Конфигурация API
+API_TIMEOUT=30
+MAX_REQUEST_SIZE=1048576
+```
+
+### Docker конфигурация
+
+Приложение поддерживает несколько профилей развертывания:
+
+```bash
+# Базовое развертывание (frontend + backend)
+docker-compose up -d
+
+# С кэшированием (frontend + backend + redis)
+docker-compose --profile cache up -d
+
+# С мониторингом (frontend + backend + prometheus + grafana)
+docker-compose --profile monitoring up -d
+
+# Полный стек (все сервисы)
+docker-compose --profile cache --profile monitoring up -d
+```
+
+## 📡 Использование API
+
+### Базовый анализ запроса
+
+```bash
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Как сбросить пароль?"}'
+```
+
+### Проверка здоровья
+
+```bash
+curl http://localhost:8000/health
+```
+
+### Административные операции (требует аутентификации)
+
+```bash
+# Сброс счетчиков ошибок
+curl -X POST http://localhost:8000/admin/reset-errors \
+  -H "Authorization: Bearer your-admin-key"
+
+# Получение системных метрик
+curl http://localhost:8000/metrics
+```
+
+## 🏗️ Архитектура
+
+Система состоит из нескольких ключевых компонентов:
+
+### Backend сервисы
+- **FastAPI приложение** (`backend/app/main.py`) - Основной API сервер
+- **ML Model Service** (`backend/app/services/model_service.py`) - Обертка ML модели
+- **Аутентификация** (`backend/app/auth.py`) - Безопасность и контроль доступа
+- **Ограничение запросов** (`backend/app/rate_limiter.py`) - Защита от DoS
+- **Мониторинг** (`backend/app/monitoring.py`) - Сбор метрик
+
+### Frontend
+- **Статические файлы** (`frontend/`) - HTML, CSS, JavaScript интерфейс
+- **Интеграция с API** - Коммуникация с бекендом в реальном времени
+
+### Data Layer
+- **База знаний** (`backend/app/data/knowledge_base.json`) - FAQ и решения
+- **ML модели** (`backend/models/`) - Обученные модели для анализа
+
+Подробную информацию об архитектуре смотрите в [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## 🔒 Функции безопасности
+
+- **Аутентификация**: Bearer token аутентификация для endpoints администратора
+- **Ограничение запросов**: 10 запросов в минуту на IP адрес
+- **Защита CORS**: Настраиваемые ограничения источников
+- **Security Headers**: Комплексная защита от XSS, clickjacking и др.
+- **Валидация входных данных**: Надежная валидация с Pydantic
+- **Обработка ошибок**: Раскрытия чувствительной информации нет
+
+## 📊 Мониторинг и наблюдаемость
+
+- **Проверки здоровья**: Непрерывный мониторинг здоровья системы
+- **Сбор метрик**: Количество запросов, время ответа, частота ошибок
+- **Структурированное логирование**: JSON-форматированные логи с контекстом
+- **Интеграция с Prometheus**: Экспорт метрик для систем мониторинга
+- **Grafana дашборды**: Визуализация и алертинг (опционально)
+
+## 🛠️ Разработка
+
+### Структура проекта
+
+```
+support_assistant/
+├── backend/                 # FastAPI backend приложение
+│   ├── app/                # Основной код приложения
+│   │   ├── main.py         # Точка входа FastAPI приложения
+│   │   ├── config.py       # Управление конфигурацией
+│   │   ├── auth.py         # Аутентификация
+│   │   ├── services/       # Сервисы бизнес-логики
+│   │   └── data/           # Данные базы знаний
+│   ├── models/             # ML модели
+│   ├── requirements.txt    # Python зависимости
+│   └── Dockerfile          # Конфигурация контейнера бекенда
+├── frontend/               # Статические файлы фронтенда
+│   ├── index.html          # Основной HTML интерфейс
+│   └── app.js              # JavaScript логика приложения
+├── docker-compose.yml      # Оркестрация полного стека
+├── nginx.conf              # Конфигурация Nginx
+├── ARCHITECTURE.md         # Детальная документация архитектуры
+├── SECURITY_TEST_REPORT.md # Результаты аудита безопасности
+└── README.md               # Этот файл
+```
+
+### Добавление новых функций
+
+1. **Backend**: Добавить новые endpoints в `backend/app/main.py`
+2. **Сервисы**: Создать новые сервисы в `backend/app/services/`
+3. **Frontend**: Обновить `frontend/app.js` для новой функциональности
+4. **Документация**: Обновить документацию API и архитектуры
+
+## 🚀 Продакшен развертывание
+
+### Продакшен настройка Docker
+
+```bash
+# Собрать продакшен образы
+docker-compose -f docker-compose.prod.yml build
+
+# Развернуть с продакшен настройками
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+### Чеклист безопасности
+
+- [ ] Изменить стандартный API ключ администратора
+- [ ] Настроить CORS origins для вашего домена
+- [ ] Настроить HTTPS с SSL сертификатами
+- [ ] Настроить правила фаервола
+- [ ] Настроить мониторинг и алертинг
+- [ ] Включить ротацию логов
+- [ ] Настроить стратегии бэкапов
+
+## 🤝 Участие в разработке
+
+1. Сделайте форк репозитория
+2. Создайте ветку для функции (`git checkout -b feature/amazing-feature`)
+3. Закоммитьте изменения (`git commit -m 'Add amazing feature'`)
+4. Запушьте в ветку (`git push origin feature/amazing-feature`)
+5. Откройте Pull Request
+
+## 📄 Лицензия
+
+Этот проект лицензирован под MIT License - смотрите файл [LICENSE](LICENSE) для деталей.
+
+## 🆘 Поддержка
+
+Для поддержки и вопросов:
+- Создайте issue в репозитории
+- Проверьте [документацию API](http://localhost:8000/docs) при локальном запуске
+- Изучите [документацию архитектуры](ARCHITECTURE.md) для технических деталей
+
+---
+
+**Создано с ❤️ с использованием FastAPI, Python и современных веб-технологий**
