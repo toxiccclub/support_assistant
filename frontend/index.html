@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VTB | AI Ассистент поддержки</title>
+  <style>
+    :root {
+      --vtb-blue: #003da6;
+      --vtb-light-blue: #0073e6;
+      --vtb-gray: #f5f7fa;
+      --vtb-dark: #1e2a3a;
+      --vtb-border: #dce3ed;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background-color: var(--vtb-gray);
+      color: var(--vtb-dark);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+    }
+
+    /* ===== HEADER ===== */
+    .header {
+      background: var(--vtb-blue);
+      color: #fff;
+      padding: 25px;
+      text-align: center;
+    }
+
+    .header h1 { font-size: 2em; font-weight: 500; margin-bottom: 8px; }
+    .header p { opacity: 0.9; }
+
+    /* ===== TABS ===== */
+    .tabs {
+      display: flex;
+      background: #e9eef5;
+      border-bottom: 1px solid var(--vtb-border);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 15px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--vtb-dark);
+      transition: 0.3s;
+    }
+
+    .tab-btn.active {
+      background: #fff;
+      border-bottom: 3px solid var(--vtb-blue);
+      color: var(--vtb-blue);
+    }
+
+    .main-content { padding: 0; }
+
+    .tab-content {
+      display: none;
+      background: #fff;
+    }
+
+    .tab-content.active { display: block; }
+
+    /* ===== INPUT SECTION ===== */
+    .input-section {
+      background: #f0f3f8;
+      padding: 30px;
+      border-top: 1px solid var(--vtb-border);
+    }
+
+    .input-section h2 {
+      color: var(--vtb-dark);
+      margin-bottom: 15px;
+      font-size: 1.2em;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 15px;
+      border: 1px solid #cfd8e3;
+      border-radius: 6px;
+      resize: vertical;
+      transition: 0.2s;
+      font-size: 15px;
+    }
+
+    textarea:focus {
+      border-color: var(--vtb-blue);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(0, 61, 166, 0.1);
+    }
+
+    .btn {
+      background-color: var(--vtb-blue);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      margin-top: 15px;
+    }
+
+    .btn:hover { background-color: var(--vtb-light-blue); }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* ===== LOADING ===== */
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid var(--vtb-blue);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* ===== RESULT SECTION ===== */
+    .result-section {
+      padding: 30px;
+      display: none; /* скрыто по умолчанию */
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--vtb-border);
+      border-left: 4px solid var(--vtb-blue);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+    }
+
+    .card h3 {
+      margin-bottom: 10px;
+      font-size: 1.1em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .category-badge {
+      display: inline-block;
+      background: var(--vtb-blue);
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 0.9em;
+    }
+
+    .response-content {
+      line-height: 1.6;
+      white-space: pre-wrap;
+      color: var(--vtb-dark);
+    }
+
+    .operator-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 25px;
+      padding-top: 15px;
+      border-top: 1px solid var(--vtb-border);
+      justify-content: center;
+      display: none; /* скрыто по умолчанию */
+    }
+
+    .btn-success { background-color: #28a745; }
+    .btn-warning { background-color: #ffc107; color: #1e2a3a; }
+
+    /* ===== HISTORY ===== */
+    .history-header {
+      padding: 25px;
+      background: #fff;
+      border-bottom: 1px solid var(--vtb-border);
+    }
+
+    .history-controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+      align-items: center;
+    }
+
+    .search-field {
+      flex: 1;
+      padding: 10px 15px;
+      border: 1px solid var(--vtb-border);
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .history-list {
+      padding: 20px;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+
+    .ticket-item {
+      background: #fff;
+      border: 1px solid var(--vtb-border);
+      border-radius: 8px;
+      padding: 15px 20px;
+      margin-bottom: 15px;
+      transition: all 0.2s;
+    }
+
+    .ticket-item:hover {
+      border-color: var(--vtb-blue);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+
+    .ticket-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      border-bottom: 1px solid var(--vtb-border);
+      padding-bottom: 8px;
+    }
+
+    .ticket-customer {
+      font-weight: 600;
+      color: var(--vtb-dark);
+    }
+
+    .ticket-meta {
+      display: flex;
+      gap: 10px;
+      font-size: 0.9em;
+      color: #6c757d;
+    }
+
+    .ticket-category {
+      background: var(--vtb-blue);
+      color: white;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.8em;
+    }
+
+    .ticket-response {
+      background: #eef4ff;
+      padding: 10px;
+      border-left: 4px solid var(--vtb-blue);
+      border-radius: 6px;
+      margin-top: 8px;
+      white-space: pre-wrap;
+    }
+
+    .ticket-feedback {
+      margin-top: 10px;
+      border-top: 1px solid var(--vtb-border);
+      padding-top: 8px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .status-resolved { background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 10px; }
+    .status-needs_correction { background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 10px; }
+
+    .copy-btn {
+      background: var(--vtb-light-blue);
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: 0.3s;
+    }
+
+    .copy-btn:hover { background: #005bb5; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in { animation: fadeIn 0.4s ease-in; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🤖 AI Ассистент поддержки ВТБ</h1>
+      <p>Помощь операторам службы поддержки в анализе обращений</p>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab('analyze')">🔍 Анализ запроса</button>
+      <button class="tab-btn" onclick="showTab('history')">📊 История обращений</button>
+    </div>
+
+    <div class="main-content">
+      <!-- Анализ запроса -->
+      <div class="tab-content active" id="analyzeTab">
+        <div class="input-section">
+          <h2>Введите текст обращения клиента</h2>
+          <textarea id="text" placeholder="Например: Не удаётся войти в мобильное приложение ВТБ..."></textarea>
+          <button id="analyze" class="btn">🔍 Проанализировать</button>
+        </div>
+
+        <div class="loading" id="loading">
+          <div class="spinner"></div>
+          <p>Анализируем запрос...</p>
+        </div>
+
+        <!-- Результаты скрыты до анализа -->
+        <div class="result-section initially-hidden" id="resultSection">
+          <div class="card fade-in">
+            <h3>Категория обращения</h3>
+            <div id="categoryResult"></div>
+          </div>
+
+          <div class="card fade-in">
+            <h3>Ответ системы</h3>
+            <div id="responseResult"></div>
+          </div>
+
+          <div class="operator-actions initially-hidden">
+            <button onclick="FeedbackSystem.markResolved()" class="btn btn-success">✅ Решено</button>
+            <button onclick="FeedbackSystem.needCorrection()" class="btn btn-warning">✏️ Требует правок</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- История -->
+      <div class="tab-content" id="historyTab">
+        <div class="history-header">
+          <h2>📋 История обращений</h2>
+          <div class="history-controls">
+            <input type="text" id="searchHistory" placeholder="Поиск по запросу или категории..." class="search-field">
+            <button onclick="exportAllTickets()" class="btn">📤 Экспорт</button>
+            <button onclick="clearHistory()" class="btn btn-warning">🗑️ Очистить</button>
+          </div>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

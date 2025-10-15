@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.build/
+dist/
+
+# Virtual env
+venv/
+
+# OS/IDE
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Big binaries (safety)
+*.dll
+*.lib
+
+# Frontend (на будущее)
+node_modules/
