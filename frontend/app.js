@@ -23,69 +23,71 @@ class SupportAssistant {
     }
 
     async analyzeText() {
-        // Защита от множественных кликов
-        if (this.isAnalyzing) {
-            return;
-        }
-        
-        const text = this.textArea.value.trim();
-        
-        if (!text) {
-            this.showError('Пожалуйста, введите текст запроса');
-            return;
-        }
-
-        this.isAnalyzing = true;
-        this.setLoading(true);
-        this.hideError();
-
-        try {
-            console.log('Отправка запроса на анализ:', text.substring(0, 50) + '...');
-            
-            const response = await fetch('http://127.0.0.1:8000/analyze', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ 
-                    text: text
-                })
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || `HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log('Получен ответ от сервера:', data);
-            
-            // Сохраняем текущие данные
-            this.currentText = text;
-            this.currentCategory = data.category;
-            this.currentResponse = data.recommendation || data.response || '';
-            this.currentConfidence = data.category_score || 0;
-            
-            // Показываем результаты
-            this.showResultsSection();
-            
-            // Сохраняем в историю ТОЛЬКО если это новый анализ
-            // Не сохраняем при повторных анализах того же текста
-            if (!this.hasExistingTicket(text)) {
-                FeedbackSystem.sendFeedback('analyzed', 0);
-            }
-            
-            this.displayResults(data);
-            
-        } catch (error) {
-            console.error('Analysis error:', error);
-            this.showError(this.getErrorMessage(error));
-        } finally {
-            this.setLoading(false);
-            this.isAnalyzing = false;
-        }
+    // Защита от множественных кликов
+    if (this.isAnalyzing) {
+        return;
     }
+    
+    const text = this.textArea.value.trim();
+    
+    if (!text) {
+        this.showError('Пожалуйста, введите текст запроса');
+        return;
+    }
+
+    // СБРАСЫВАЕМ предыдущие результаты перед новым анализом
+    this.resetToInitialState();
+    
+    this.isAnalyzing = true;
+    this.setLoading(true);
+    this.hideError();
+
+    try {
+        console.log('Отправка запроса на анализ:', text.substring(0, 50) + '...');
+        
+        const response = await fetch('http://127.0.0.1:8000/analyze', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ 
+                text: text
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Получен ответ от сервера:', data);
+        
+        // Сохраняем текущие данные
+        this.currentText = text;
+        this.currentCategory = data.category;
+        this.currentResponse = data.recommendation || data.response || '';
+        this.currentConfidence = data.category_score || 0;
+        
+        // Показываем результаты
+        this.showResultsSection();
+        
+        // Сохраняем в историю ТОЛЬКО если это новый анализ
+        if (!this.hasExistingTicket(text)) {
+            FeedbackSystem.sendFeedback('analyzed', 0);
+        }
+        
+        this.displayResults(data);
+        
+    } catch (error) {
+        console.error('Analysis error:', error);
+        this.showError(this.getErrorMessage(error));
+    } finally {
+        this.setLoading(false);
+        this.isAnalyzing = false;
+    }
+}
 
     // Проверяем есть ли уже заявка с таким текстом
     hasExistingTicket(text) {
@@ -101,35 +103,51 @@ class SupportAssistant {
             operatorActions.style.display = 'flex';
         }
         
-        // Убираем блокировку если она была
-        this.unlockCurrentTicketUI();
-        
         const cards = this.resultSection.querySelectorAll('.card');
         cards.forEach((card, index) => {
             card.style.animationDelay = `${index * 0.1}s`;
         });
     }
 
-    // Разблокировка UI для нового анализа
-    unlockCurrentTicketUI() {
-        const lockedNote = document.getElementById('ticketLockedNote');
-        if (lockedNote) {
-            lockedNote.remove();
-        }
-        
-        const operatorActions = document.querySelector('.operator-actions');
-        if (operatorActions) {
-            operatorActions.style.display = 'flex';
-        }
-        
-        const clearBtn = document.getElementById('clearFormBtn');
-        if (clearBtn) {
-            clearBtn.remove();
-        }
-        
-        // Показываем кнопку анализа
-        this.analyzeBtn.style.display = 'block';
-    }
+    // Сброс интерфейса в начальное состояние
+    // Сброс интерфейса в начальное состояние
+resetToInitialState() {
+    // Очищаем текстовое поле (НЕ очищаем, чтобы пользователь мог редактировать запрос)
+    // this.textArea.value = ''; // УБИРАЕМ эту строку
+    
+    // Скрываем результаты
+    this.resultSection.style.display = 'none';
+    
+    // Очищаем содержимое карточек результатов
+    document.getElementById('categoryResult').innerHTML = '';
+    document.getElementById('responseResult').innerHTML = '';
+    
+    // Сбрасываем текущие данные
+    this.currentText = '';
+    this.currentCategory = '';
+    this.currentResponse = '';
+    this.currentConfidence = 0;
+    
+    // Убираем блокировку
+    const lockedNote = document.getElementById('ticketLockedNote');
+    if (lockedNote) lockedNote.remove();
+    
+    // Показываем кнопки оператора
+    const operatorActions = document.querySelector('.operator-actions');
+    if (operatorActions) operatorActions.style.display = 'flex';
+    
+    // Показываем кнопку анализа
+    this.analyzeBtn.style.display = 'block';
+    
+    // Разблокируем текстовое поле
+    this.textArea.disabled = false;
+    this.textArea.style.background = '';
+    this.textArea.style.cursor = '';
+    this.textArea.placeholder = 'Например: Не удаётся войти в мобильное приложение ВТБ...';
+    
+    // Фокус на текстовое поле (но НЕ очищаем его)
+    this.textArea.focus();
+}
 
     displayResults(data) {
         this.displayCategory(data.category, data.category_score);
@@ -153,24 +171,65 @@ class SupportAssistant {
         `;
     }
 
-    displayResponse(response) {
-        const container = document.getElementById('responseResult');
-        
-        if (!response) {
-            container.innerHTML = '<p style="color: #6c757d;">Ответ не сгенерирован</p>';
-            return;
-        }
-
-        const cleanResponse = this.cleanText(response);
-        
-        container.innerHTML = `
-            <div class="response-content">${cleanResponse}</div>
-            <button onclick="copyToClipboard('${this.escapeForJavascript(cleanResponse)}')" 
-                    class="copy-btn" title="Копировать ответ" style="margin-top: 10px;">
-                📋 Копировать ответ
-            </button>
-        `;
+ displayResponse(response) {
+    const container = document.getElementById('responseResult');
+    
+    if (!response) {
+        container.innerHTML = '<p style="color: #6c757d;">Ответ не сгенерирован</p>';
+        return;
     }
+
+    const cleanResponse = this.cleanText(response);
+    
+    // ВОЗВРАЩАЕМ кнопку копирования
+    container.innerHTML = `
+        <div class="response-content">${cleanResponse}</div>
+        <button id="copyResponseBtn" class="copy-btn" title="Копировать ответ" style="margin-top: 10px;">
+            📋 Копировать ответ
+        </button>
+    `;
+    
+    // Добавляем обработчик события
+    const copyBtn = document.getElementById('copyResponseBtn');
+    copyBtn.addEventListener('click', () => {
+        this.copyToClipboard(cleanResponse, copyBtn);
+    });
+}
+
+// Функция для копирования (должна быть в классе)
+copyToClipboard(text, buttonElement) {
+    navigator.clipboard.writeText(text).then(() => {
+        const originalText = buttonElement.textContent;
+        buttonElement.textContent = '✅ Скопировано!';
+        buttonElement.style.background = '#28a745';
+        
+        setTimeout(() => {
+            buttonElement.textContent = originalText;
+            buttonElement.style.background = '';
+        }, 2000);
+    }).catch(err => {
+        console.error('Copy failed:', err);
+        
+        // Fallback для старых браузеров
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            buttonElement.textContent = '✅ Скопировано!';
+            buttonElement.style.background = '#28a745';
+            setTimeout(() => {
+                buttonElement.textContent = '📋 Копировать ответ';
+                buttonElement.style.background = '';
+            }, 2000);
+        } catch (fallbackErr) {
+            console.error('Fallback copy failed:', fallbackErr);
+            alert('Не удалось скопировать текст. Скопируйте вручную.');
+        }
+        document.body.removeChild(textArea);
+    });
+}
 
     cleanText(text) {
         if (!text) return '';
@@ -192,16 +251,6 @@ class SupportAssistant {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
-    }
-
-    escapeForJavascript(text) {
-        return text
-            .replace(/\\/g, '\\\\')
-            .replace(/'/g, "\\'")
-            .replace(/"/g, '\\"')
-            .replace(/\n/g, '\\n')
-            .replace(/\r/g, '\\r')
-            .replace(/\t/g, '\\t');
     }
 
     setLoading(loading) {
@@ -257,13 +306,14 @@ class FeedbackSystem {
     }
 
     static async markResolved() {
-        const updated = await this.updateTicketStatus('resolved', 5);
+        const updated = await this.updateTicketStatus('resolved', 0);
         if (updated) {
             this.showNotification('✅ Отмечено как решенное');
             if (document.getElementById('historyTab')?.classList.contains('active')) {
                 loadHistory();
             }
-            this.lockCurrentTicketUI();
+            // СРАЗУ возвращаем в начальное состояние
+            assistant.resetToInitialState();
         }
     }
 
@@ -342,132 +392,77 @@ class FeedbackSystem {
     }
 
     static async saveCorrection() {
-        const correctedCategory = document.getElementById('correctedCategory').value;
-        const correctedResponse = document.getElementById('correctedResponse').value;
-        
-        // Обновляем текущий ответ в ассистенте
-        assistant.currentResponse = correctedResponse;
-        assistant.currentCategory = correctedCategory || assistant.currentCategory;
-        
-        // Для статуса needs_correction рейтинг всегда 0 (не отображается)
-        const updated = await this.updateTicketStatus('needs_correction', 0, correctedCategory || null);
-        
-        if (updated) {
-            this.closeCorrectionModal();
-            this.showNotification('📝 Заявка исправлена и сохранена');
-            if (document.getElementById('historyTab')?.classList.contains('active')) {
-                loadHistory();
-            }
-            this.lockCurrentTicketUI();
-        }
+    const correctedCategory = document.getElementById('correctedCategory').value;
+    const correctedResponse = document.getElementById('correctedResponse').value;
+    
+    const originalCategory = assistant.currentCategory;
+    const originalResponse = assistant.currentResponse;
+    
+    // Сохраняем оригинальный ответ перед обновлением
+    const originalResponseForHistory = originalResponse;
+    
+    // Обновляем текущий ответ в ассистенте
+    assistant.currentResponse = correctedResponse;
+    
+    // Определяем, что было изменено
+    const isCategoryChanged = correctedCategory && correctedCategory !== originalCategory;
+    const isResponseChanged = correctedResponse !== originalResponse;
+    
+    let notificationMessage = '📝 Заявка сохранена';
+    
+    if (isCategoryChanged && isResponseChanged) {
+        notificationMessage = '📝 Категория и ответ исправлены';
+    } else if (isCategoryChanged) {
+        notificationMessage = '📝 Категория исправлена';
+    } else if (isResponseChanged) {
+        notificationMessage = '📝 Ответ исправлен';
+    } else {
+        notificationMessage = '✅ Заявка сохранена (без изменений)';
     }
-
-    static async updateTicketStatus(status, rating, correctedCategory = null, notes = '') {
-        if (!assistant.currentText) {
-            alert('Нет данных для обновления');
-            return false;
+    
+    const updated = await this.updateTicketStatus(
+        'needs_correction', 
+        0, 
+        isCategoryChanged ? correctedCategory : null,
+        '', 
+        originalCategory,
+        isResponseChanged ? originalResponseForHistory : null // Передаем оригинальный ответ если он изменился
+    );
+    
+    if (updated) {
+        this.closeCorrectionModal();
+        this.showNotification(notificationMessage);
+        if (document.getElementById('historyTab')?.classList.contains('active')) {
+            loadHistory();
         }
-
-        const ticketData = {
-            original_text: assistant.currentText,
-            predicted_category: assistant.currentCategory,
-            system_response: assistant.currentResponse,
-            confidence: assistant.currentConfidence,
-            status: status,
-            operator_rating: status === 'resolved' ? rating : 0,
-            operator_notes: notes,
-            corrected_category: correctedCategory
-        };
-
-        const updatedTicket = TicketManager.saveOrUpdateTicket(ticketData);
-        return !!updatedTicket;
+        // СРАЗУ возвращаем в начальное состояние
+        assistant.resetToInitialState();
     }
+}
 
-    static lockCurrentTicketUI() {
-        // Скрываем действия оператора
-        const operatorActions = document.querySelector('.operator-actions');
-        if (operatorActions) {
-            operatorActions.style.display = 'none';
-        }
-        
-        // Скрываем кнопку анализа
-        assistant.analyzeBtn.style.display = 'none';
-        
-        // Добавляем визуальное обозначение закрытой заявки
-        const resultSection = document.getElementById('resultSection');
-        if (resultSection && !document.getElementById('ticketLockedNote')) {
-            const note = document.createElement('div');
-            note.id = 'ticketLockedNote';
-            note.style.cssText = `
-                margin: 20px 0;
-                padding: 20px;
-                border: 1px solid #d4edda;
-                border-radius: 8px;
-                background: #f8fff9;
-                color: #155724;
-                text-align: center;
-                font-weight: 500;
-                border-left: 4px solid #28a745;
-            `;
-            note.innerHTML = `
-                <div style="font-size: 24px; margin-bottom: 8px;">🔒</div>
-                <div>Заявка сохранена в историю</div>
-                <div style="font-size: 0.9em; margin-top: 5px; color: #6c757d;">
-                    Вы можете начать новый анализ
-                </div>
-            `;
-            resultSection.appendChild(note);
-        }
-        
-        // Показываем кнопку для очистки формы
-        this.addClearFormButton();
+    static async updateTicketStatus(status, rating, correctedCategory = null, notes = '', originalCategory = null, originalResponse = null) {
+    if (!assistant.currentText) {
+        alert('Нет данных для обновления');
+        return false;
     }
-
-    static addClearFormButton() {
-        const inputSection = document.querySelector('.input-section');
-        const existingClearBtn = document.getElementById('clearFormBtn');
-        
-        if (!existingClearBtn) {
-            const clearBtn = document.createElement('button');
-            clearBtn.id = 'clearFormBtn';
-            clearBtn.textContent = '🧹 Начать новый анализ';
-            clearBtn.style.cssText = `
-                background: #003da6;
-                color: white;
-                border: none;
-                padding: 12px 24px;
-                border-radius: 6px;
-                cursor: pointer;
-                margin-top: 15px;
-                font-weight: 500;
-                transition: 0.2s;
-                width: 100%;
-                font-size: 16px;
-            `;
-            clearBtn.onmouseover = () => clearBtn.style.backgroundColor = '#002a75';
-            clearBtn.onmouseout = () => clearBtn.style.backgroundColor = '#003da6';
-            clearBtn.onclick = () => {
-                // Очищаем форму
-                assistant.textArea.value = '';
-                // Скрываем результаты
-                assistant.resultSection.style.display = 'none';
-                // Убираем блокировку
-                const lockedNote = document.getElementById('ticketLockedNote');
-                if (lockedNote) lockedNote.remove();
-                // Показываем кнопки оператора снова
-                const operatorActions = document.querySelector('.operator-actions');
-                if (operatorActions) operatorActions.style.display = 'flex';
-                // Показываем кнопку анализа
-                assistant.analyzeBtn.style.display = 'block';
-                // Убираем кнопку очистки
-                clearBtn.remove();
-                // Фокус на текстовое поле
-                assistant.textArea.focus();
-            };
-            
-            inputSection.appendChild(clearBtn);
-        }
-    }
+    
+    const predictedCategory = originalCategory || assistant.currentCategory;
+    
+    const ticketData = {
+        original_text: assistant.currentText,
+        predicted_category: predictedCategory,
+        system_response: assistant.currentResponse,
+        confidence: assistant.currentConfidence,
+        status: status,
+        operator_rating: 0,
+        operator_notes: notes,
+        corrected_category: correctedCategory,
+        original_response: originalResponse // Сохраняем оригинальный ответ
+    };
+    
+    const updatedTicket = TicketManager.saveOrUpdateTicket(ticketData);
+    return !!updatedTicket;
+}
 
     static async sendFeedback(status, rating, correctedCategory = null, notes = '') {
         const ticketData = {
@@ -529,49 +524,53 @@ class TicketManager {
     }
     
     static saveOrUpdateTicket(ticketData) {
-        const tickets = this.getAllTickets();
-        const existingTicket = this.findExistingTicket(ticketData);
+    const tickets = this.getAllTickets();
+    const existingTicket = this.findExistingTicket(ticketData);
+    
+    if (existingTicket) {
+        console.log('Обновляем существующую заявку:', existingTicket.id);
+        const ticketIndex = tickets.findIndex(t => t.id === existingTicket.id);
         
-        if (existingTicket) {
-            console.log('Обновляем существующую заявку:', existingTicket.id);
-            const ticketIndex = tickets.findIndex(t => t.id === existingTicket.id);
-            tickets[ticketIndex] = {
-                ...existingTicket,
-                predicted_category: ticketData.corrected_category || ticketData.predicted_category, // Обновляем категорию если исправлена
-                system_response: ticketData.system_response, // Обновляем ответ
-                status: ticketData.status,
-                operator_rating: ticketData.operator_rating,
-                operator_notes: ticketData.operator_notes || '',
-                corrected_category: ticketData.corrected_category || null,
-                timestamp: new Date().toISOString()
-            };
-            
-            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(tickets));
-            return tickets[ticketIndex];
-        } else {
-            console.log('Создаем новую заявку');
-            const ticketNumber = this.getNextTicketNumber();
-            const ticketId = `T${ticketNumber.toString().padStart(4, '0')}`;
-            
-            const ticket = {
-                id: ticketId,
-                number: ticketNumber,
-                timestamp: new Date().toISOString(),
-                original_text: ticketData.original_text,
-                predicted_category: ticketData.predicted_category,
-                system_response: ticketData.system_response,
-                confidence: ticketData.confidence,
-                status: ticketData.status || 'analyzed',
-                operator_rating: ticketData.operator_rating || 0,
-                operator_notes: ticketData.operator_notes || '',
-                corrected_category: ticketData.corrected_category || null
-            };
-            
-            tickets.unshift(ticket);
-            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(tickets));
-            return ticket;
-        }
+        tickets[ticketIndex] = {
+            ...existingTicket,
+            predicted_category: ticketData.predicted_category,
+            system_response: ticketData.system_response,
+            status: ticketData.status,
+            operator_rating: ticketData.operator_rating,
+            operator_notes: ticketData.operator_notes || '',
+            corrected_category: ticketData.corrected_category || null,
+            // Сохраняем оригинальный ответ если он передан
+            original_response: ticketData.original_response || existingTicket.original_response,
+            timestamp: new Date().toISOString()
+        };
+        
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(tickets));
+        return tickets[ticketIndex];
+    } else {
+        console.log('Создаем новую заявку');
+        const ticketNumber = this.getNextTicketNumber();
+        const ticketId = `T${ticketNumber.toString().padStart(4, '0')}`;
+        
+        const ticket = {
+            id: ticketId,
+            number: ticketNumber,
+            timestamp: new Date().toISOString(),
+            original_text: ticketData.original_text,
+            predicted_category: ticketData.predicted_category,
+            system_response: ticketData.system_response,
+            confidence: ticketData.confidence,
+            status: ticketData.status || 'analyzed',
+            operator_rating: ticketData.operator_rating || 0,
+            operator_notes: ticketData.operator_notes || '',
+            corrected_category: ticketData.corrected_category || null,
+            original_response: ticketData.original_response || null // Сохраняем оригинальный ответ
+        };
+        
+        tickets.unshift(ticket);
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(tickets));
+        return ticket;
     }
+}
     
     static getAllTickets() {
         const tickets = JSON.parse(localStorage.getItem(this.STORAGE_KEY) || '[]');
@@ -599,23 +598,6 @@ class TicketManager {
             lastNumber: parseInt(localStorage.getItem(this.COUNTER_KEY) || '0')
         };
     }
-}
-
-// Функция копирования в буфер обмена
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        const originalText = event.target.textContent;
-        event.target.textContent = '✅ Скопировано!';
-        event.target.style.background = '#28a745';
-        
-        setTimeout(() => {
-            event.target.textContent = originalText;
-            event.target.style.background = '';
-        }, 2000);
-    }).catch(err => {
-        console.error('Copy failed:', err);
-        alert('Не удалось скопировать текст');
-    });
 }
 
 // Функции для работы с вкладками и истории
@@ -651,7 +633,7 @@ function loadHistory(searchQuery = '') {
         `;
         
         if (historyHeader) {
-            historyHeader.innerHTML = `📋 История обращений <small style="font-size: 0.6em; color: #666;">(Всего: 0, Решено: 0)</small>`;
+            historyHeader.innerHTML = `📋 История обращений <small style="font-size: 0.6em; color: #666;">(Всего: 0, Решено: 0, Исправлено: 0)</small>`;
         }
         return;
     }
@@ -674,57 +656,55 @@ function loadHistory(searchQuery = '') {
     }
     
     historyList.innerHTML = filteredTickets.map(ticket => {
-        // Определяем отображаемую категорию - исправленную или исходную
-        const displayCategory = ticket.corrected_category || ticket.predicted_category;
+    const displayCategory = ticket.corrected_category || ticket.predicted_category;
+    const isCorrected = ticket.status === 'needs_correction';
+    
+    return `
+    <div class="ticket-item" 
+         style="${isCorrected ? 'border-left: 4px solid #ffc107;' : ''}; cursor: pointer;" 
+         onclick="ModalSystem.showTicketDetails(${JSON.stringify(ticket).replace(/"/g, '&quot;')})">
+        <div class="ticket-header">
+            <div class="ticket-customer">
+                ${isCorrected ? '<span style="margin-right: 6px; color: #ffc107; font-size: 0.9em;">✏️</span>' : ''}
+                Запрос ${ticket.id}
+            </div>
+            <div class="ticket-meta">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="ticket-category" style="${ticket.corrected_category ? 'background: #28a745;' : ''}">
+                        ${escapeHtml(displayCategory)}
+                    </span>
+                    ${ticket.status !== 'analyzed' ? `
+                    <span class="status-${ticket.status}">
+                        ${ticket.status === 'resolved' ? '✅ Решено' :
+                          ticket.status === 'needs_correction' ? '✏️ Исправлено' :
+                          '📊 Анализ'}
+                    </span>
+                    ` : ''}
+                </div>
+                <span>${new Date(ticket.timestamp).toLocaleString()}</span>
+            </div>
+        </div>
         
-        return `
-        <div class="ticket-item">
-            <div class="ticket-header">
-                <div class="ticket-customer">
-                    Запрос ${ticket.id}
-                </div>
-                <div class="ticket-meta">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span class="ticket-category">${escapeHtml(displayCategory)}</span>
-                        ${ticket.status !== 'analyzed' ? `
-                        <span class="status-${ticket.status}">
-                            ${ticket.status === 'resolved' ? '✅ Решено' :
-                              ticket.status === 'needs_correction' ? '✏️ Исправлено' :
-                              '📊 Анализ'}
-                        </span>
-                        ` : ''}
-                    </div>
-                    <span>${new Date(ticket.timestamp).toLocaleString()}</span>
-                </div>
+        <div class="ticket-content">
+            <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 10px;">
+                <strong>Запрос:</strong> ${escapeHtml(ticket.original_text.substring(0, 100))}${ticket.original_text.length > 100 ? '...' : ''}
             </div>
-            
-            <div class="ticket-content">
-                <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 10px;">
-                    <strong>Запрос:</strong> ${escapeHtml(ticket.original_text)}
-                </div>
-                ${ticket.system_response ? `
-                <div class="ticket-response">
-                    <strong>Ответ:</strong> ${cleanText(ticket.system_response)}
-                </div>
-                ` : ''}
-                ${ticket.confidence ? `<div style="margin-top: 8px;"><strong>Уверенность:</strong> ${Math.round(ticket.confidence * 100)}%</div>` : ''}
-                
-                ${ticket.corrected_category ? `
-                <div style="margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
-                    <strong>📝 Исправления оператора:</strong><br>
-                    <strong>Категория:</strong> ${escapeHtml(ticket.corrected_category)} (было: ${escapeHtml(ticket.predicted_category)})
-                </div>
-                ` : ''}
+            ${ticket.system_response ? `
+            <div class="ticket-response" style="${ticket.original_response ? 'border-left-color: #007bff;' : ''}">
+                <strong>Ответ:</strong> ${cleanText(ticket.system_response.substring(0, 150))}${ticket.system_response.length > 150 ? '...' : ''}
             </div>
+            ` : ''}
+            ${ticket.confidence ? `<div style="margin-top: 8px;"><strong>Уверенность:</strong> ${Math.round(ticket.confidence * 100)}%</div>` : ''}
             
-            ${ticket.status === 'resolved' && ticket.operator_rating ? `
-            <div class="ticket-feedback">
-                <span><strong>Оценка:</strong> ${'⭐'.repeat(ticket.operator_rating)}</span>
+            ${isCorrected ? `
+            <div style="margin-top: 10px; color: #6c757d; font-size: 0.9em;">
+                🔍 Нажмите для просмотра деталей исправлений
             </div>
             ` : ''}
         </div>
-        `;
-    }).join('');
+    </div>
+    `;
+}).join('');
 }
 
 // Вспомогательные функции для HTML
@@ -760,33 +740,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Экспорт истории
-function exportAllTickets() {
-    const tickets = TicketManager.getAllTickets();
-    if (tickets.length === 0) {
-        alert('Нет данных для экспорта');
-        return;
-    }
-    
-    const dataStr = JSON.stringify(tickets, null, 2);
-    const dataBlob = new Blob([dataStr], {type: 'application/json'});
-    
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(dataBlob);
-    link.download = `vtb_support_tickets_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    
-    alert(`Экспортировано ${tickets.length} заявок`);
-}
 
 // Очистка истории
 function clearHistory() {
-    if (confirm('Вы уверены что хотите очистить всю историю заявок? Счетчик номеров будет сброшен.')) {
-        localStorage.removeItem('support_tickets');
-        localStorage.removeItem('ticket_counter');
-        updateHistoryDisplay();
-        FeedbackSystem.showNotification('✅ История очищена, счетчик сброшен');
-    }
+    ModalSystem.showClearHistoryModal();
 }
 
 function updateHistoryDisplay() {
@@ -801,8 +758,152 @@ function updateHistoryDisplay() {
     `;
     
     if (historyHeader) {
-        historyHeader.innerHTML = `📋 История обращений <small style="font-size: 0.6em; color: #666;">(Всего: 0, Решено: 0)</small>`;
+        historyHeader.innerHTML = `📋 История обращений <small style="font-size: 0.6em; color: #666;">(Всего: 0, Решено: 0, Исправлено: 0)</small>`;
     }
+}
+
+// Система управления модальными окнами
+class ModalSystem {
+    static showClearHistoryModal() {
+        const modal = document.getElementById('clearHistoryModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    }
+    
+    static closeClearHistoryModal() {
+        const modal = document.getElementById('clearHistoryModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+    
+    static confirmClearHistory() {
+        this.closeClearHistoryModal();
+        this.performClearHistory();
+    }
+    
+    static performClearHistory() {
+        localStorage.removeItem('support_tickets');
+        localStorage.removeItem('ticket_counter');
+        updateHistoryDisplay();
+        FeedbackSystem.showNotification('✅ История очищена, счетчик сброшен');
+    }
+    // В класс ModalSystem добавь эти методы:
+
+static showTicketDetails(ticket) {
+    const modal = document.getElementById('ticketDetailsModal');
+    const content = document.getElementById('ticketDetailsContent');
+    
+    if (modal && content) {
+        content.innerHTML = this.generateTicketDetailsHTML(ticket);
+        modal.style.display = 'flex';
+    }
+}
+
+static closeTicketDetails() {
+    const modal = document.getElementById('ticketDetailsModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+static generateTicketDetailsHTML(ticket) {
+    const displayCategory = ticket.corrected_category || ticket.predicted_category;
+    const hasCorrections = ticket.corrected_category || ticket.original_response;
+    
+    return `
+        <div style="margin-bottom: 25px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div>
+                    <strong style="font-size: 1.1em;">Запрос ${ticket.id}</strong>
+                    <span style="margin-left: 10px; color: #6c757d; font-size: 0.9em;">
+                        ${new Date(ticket.timestamp).toLocaleString()}
+                    </span>
+                </div>
+                <span class="status-${ticket.status}" style="font-size: 0.9em;">
+                    ${ticket.status === 'resolved' ? '✅ Решено' :
+                      ticket.status === 'needs_correction' ? '✏️ Исправлено' :
+                      '📊 Анализ'}
+                </span>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <span class="ticket-category" style="${ticket.corrected_category ? 'background: #28a745;' : ''}">
+                    ${escapeHtml(displayCategory)}
+                </span>
+                ${ticket.confidence ? `
+                <span style="background: #e9ecef; color: #6c757d; padding: 4px 10px; border-radius: 20px; font-size: 0.8em;">
+                    Уверенность: ${Math.round(ticket.confidence * 100)}%
+                </span>
+                ` : ''}
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <h4 style="margin-bottom: 10px; color: var(--vtb-dark);">📝 Запрос клиента</h4>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid var(--vtb-blue);">
+                ${escapeHtml(ticket.original_text)}
+            </div>
+        </div>
+        
+        ${ticket.system_response ? `
+        <div style="margin-bottom: 20px;">
+            <h4 style="margin-bottom: 10px; color: var(--vtb-dark);">💡 Ответ системы</h4>
+            <div style="background: #eef4ff; padding: 15px; border-radius: 6px; border-left: 4px solid var(--vtb-light-blue); white-space: pre-wrap;">
+                ${cleanText(ticket.system_response)}
+            </div>
+        </div>
+        ` : ''}
+        
+        ${hasCorrections ? `
+        <div style="margin-bottom: 20px;">
+            <h4 style="margin-bottom: 15px; color: var(--vtb-dark); display: flex; align-items: center; gap: 8px;">
+                ✏️ Исправления оператора
+            </h4>
+            
+            ${ticket.corrected_category && ticket.corrected_category !== ticket.predicted_category ? `
+            <div style="margin-bottom: 15px;">
+                <h5 style="margin-bottom: 8px; color: #6c757d;">Категория</h5>
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <div style="flex: 1; background: #ffebee; padding: 12px; border-radius: 6px; border-left: 4px solid #dc3545;">
+                        <div style="font-size: 0.9em; color: #6c757d; margin-bottom: 4px;">Было:</div>
+                        <div>${escapeHtml(ticket.predicted_category)}</div>
+                    </div>
+                    <div style="font-size: 20px; color: #6c757d;">→</div>
+                    <div style="flex: 1; background: #d4edda; padding: 12px; border-radius: 6px; border-left: 4px solid #28a745;">
+                        <div style="font-size: 0.9em; color: #6c757d; margin-bottom: 4px;">Стало:</div>
+                        <div>${escapeHtml(ticket.corrected_category)}</div>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
+            
+            ${ticket.original_response ? `
+            <div style="margin-bottom: 15px;">
+                <h5 style="margin-bottom: 8px; color: #6c757d;">Текст ответа</h5>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <div style="background: #fff3cd; padding: 12px; border-radius: 6px; border-left: 4px solid #ffc107;">
+                        <div style="font-size: 0.9em; color: #6c757d; margin-bottom: 4px;">Было:</div>
+                        <div style="white-space: pre-wrap;">${cleanText(ticket.original_response)}</div>
+                    </div>
+                    <div style="background: #e7f3ff; padding: 12px; border-radius: 6px; border-left: 4px solid #007bff;">
+                        <div style="font-size: 0.9em; color: #6c757d; margin-bottom: 4px;">Стало:</div>
+                        <div style="white-space: pre-wrap;">${cleanText(ticket.system_response)}</div>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
+        </div>
+        ` : ''}
+        
+        ${!hasCorrections ? `
+        <div style="text-align: center; padding: 20px; color: #6c757d;">
+            <p>Оператор не вносил изменений в эту заявку</p>
+        </div>
+        ` : ''}
+    `;
+}
 }
 
 // Глобальная переменная для доступа к ассистенту

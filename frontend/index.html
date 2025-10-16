@@ -401,6 +401,61 @@
     .btn-cancel:hover {
         background: #f8f9fa;
     }
+    /* Стили для модального окна очистки истории */
+#clearHistoryModal {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+#clearHistoryModal > div {
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from { 
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to { 
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+.copy-btn {
+    background: var(--vtb-light-blue);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: 0.3s;
+    margin-top: 10px;
+}
+
+.copy-btn:hover {
+    background: #005bb5;
+    transform: translateY(-1px);
+}
+
+.copy-btn:active {
+    transform: translateY(0);
+}
+/* Добавь в тег <style> */
+.ticket-item {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.ticket-item:hover {
+    border-color: var(--vtb-blue);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
   </style>
 </head>
 <body>
@@ -454,7 +509,6 @@
           <h2>📋 История обращений</h2>
           <div class="history-controls">
             <input type="text" id="searchHistory" placeholder="Поиск по запросу или категории..." class="search-field">
-            <button onclick="exportAllTickets()" class="btn">📤 Экспорт</button>
             <button onclick="clearHistory()" class="btn btn-warning">🗑️ Очистить</button>
           </div>
         </div>
@@ -464,5 +518,101 @@
   </div>
 
   <script src="app.js"></script>
+  <!-- Модальное окно подтверждения очистки истории -->
+<div id="clearHistoryModal" style="
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 10000;
+    justify-content: center;
+    align-items: center;
+">
+    <div style="
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 400px;
+        text-align: center;
+        border: 1px solid var(--vtb-border);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    ">
+        <div style="font-size: 48px; margin-bottom: 15px;">🗑️</div>
+        <h3 style="margin-bottom: 15px; color: var(--vtb-dark);">Очистка истории</h3>
+        <p style="margin-bottom: 25px; color: #6c757d; line-height: 1.5;">
+            Вы уверены что хотите очистить всю историю заявок?<br>
+            <strong>Счетчик номеров будет сброшен.</strong>
+        </p>
+        <div style="display: flex; gap: 12px; justify-content: center;">
+            <button onclick="ModalSystem.closeClearHistoryModal()" 
+                    style="padding: 10px 24px; border: 1px solid #6c757d; 
+                           background: white; border-radius: 6px; cursor: pointer;
+                           color: #6c757d; font-weight: 500; transition: 0.2s;">
+                Отмена
+            </button>
+            <button onclick="ModalSystem.confirmClearHistory()" 
+                    style="padding: 10px 24px; background: #dc3545; color: white; 
+                           border: none; border-radius: 6px; cursor: pointer;
+                           font-weight: 500; transition: 0.2s;">
+                ✅ Очистить
+            </button>
+        </div>
+    </div>
+</div>
+<!-- Добавь этот код перед закрывающим тегом </body> -->
+
+<!-- Модальное окно деталей заявки -->
+<div id="ticketDetailsModal" style="
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 10000;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+">
+    <div style="
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 800px;
+        max-height: 90vh;
+        overflow-y: auto;
+        border: 1px solid var(--vtb-border);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    ">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="color: var(--vtb-dark); display: flex; align-items: center; gap: 10px;">
+                📋 Детали заявки
+            </h3>
+            <button onclick="ModalSystem.closeTicketDetails()" 
+                    style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6c757d;">
+                ×
+            </button>
+        </div>
+        
+        <div id="ticketDetailsContent">
+            <!-- Сюда будет загружаться содержимое заявки -->
+        </div>
+        
+        <div style="display: flex; justify-content: flex-end; margin-top: 25px;">
+            <button onclick="ModalSystem.closeTicketDetails()" 
+                    style="padding: 10px 24px; background: var(--vtb-blue); color: white; 
+                           border: none; border-radius: 6px; cursor: pointer;
+                           font-weight: 500; transition: 0.2s;">
+                Закрыть
+            </button>
+        </div>
+    </div>
+</div>
 </body>
 </html>
