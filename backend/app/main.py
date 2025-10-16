@@ -12,7 +12,7 @@ import asyncio
 # Импорт утилит и сервисов
 from .logging_utils import setup_logging, log_execution_time_async, get_structured_logger
 from .config import settings
-from .services.model_service import model_service, ModelService
+from .services.vector_model_service import vector_model_service, VectorModelService
 from .dependencies import get_model_service
 from .monitoring import metrics_collector, record_request_metric, get_health_status
 from .auth import verify_admin_token, get_current_admin_user, get_admin_key
@@ -126,10 +126,10 @@ async def startup_event():
         logger.info(f"🚀 Запуск AI Support Service...")
         logger.info(f"🌐 CORS разрешены для: {settings.get_cors_origins()}")
         
-        # Инициализируем модель
-        success = model_service.initialize()
+        # Инициализируем векторную модель
+        success = await vector_model_service.initialize()
         if not success:
-            logger.error("❌ Не удалось инициализировать модель при запуске")
+            logger.error("❌ Не удалось инициализировать векторную модель при запуске")
             # Не падаем, сервис может работать в degraded mode
         
         logger.info("✅ AI Support Service запущен")
@@ -145,7 +145,7 @@ async def startup_event():
 async def root():
     return {
         "status": "AI Support Service is running", 
-        "model_status": model_service.get_status(),
+        "model_status": vector_model_service.get_status(),
         "timestamp": datetime.now().isoformat()
     }
 
@@ -162,7 +162,7 @@ async def health_check():
 async def analyze(
     request: Request,
     req: AnalyzeRequest, 
-    model: ModelService = Depends(get_model_service)  # Используем dependency injection
+    model: VectorModelService = Depends(get_model_service)  # Используем dependency injection
 ):
     """Анализ запроса с обработанными ошибками"""
     try:
@@ -171,21 +171,18 @@ async def analyze(
         
         logger.info(f"🔍 Анализ запроса: {req.text[:100]}...")
         
-        # Обрабатываем запрос через сервис
+        # Обрабатываем запрос через векторный сервис
         start_time = time.time()
-        result = await asyncio.get_event_loop().run_in_executor(
-            None,
-            model.process_query,
-            req.text
-        )
+        result = await model.process_query(req.text)
         execution_time = time.time() - start_time
         
         logger.info(f"✅ Запрос обработан за {execution_time:.3f}s")
         
-        # Форматируем ответ
+        # Форматируем ответ для векторной модели
+        search_results = result.get('search_results', [])
         similar_questions = [
-            item['knowledge_item']['question'] 
-            for item in result.get('classification', {}).get('similar_items', [])[:3]
+            item['document'].get('question', item['document'].get('content', ''))[:100]
+            for item in search_results[:3]
         ]
         
         response_data = {
@@ -198,7 +195,8 @@ async def analyze(
                 "template": result.get('response', '')
             },
             "recommendation": result.get('response', ''),
-            "fallback": result.get('fallback', False)
+            "fallback": result.get('fallback', False),
+            "search_type": result.get('classification', {}).get('search_type', 'unknown')
         }
         
         return response_data
@@ -215,7 +213,7 @@ async def analyze(
 async def submit_feedback(
     request: ServerFeedbackRequest, 
     background_tasks: BackgroundTasks,
-    model: ModelService = Depends(get_model_service)
+    model: VectorModelService = Depends(get_model_service)
 ):
     """Сбор обратной связи для ML модели"""
     try:
@@ -252,17 +250,17 @@ async def submit_feedback(
 
 @app.get("/stats")
 @log_execution_time_async
-async def get_statistics(model: ModelService = Depends(get_model_service)):
+async def get_statistics(model: VectorModelService = Depends(get_model_service)):
     """Получение статистики по модели"""
     try:
         model_status = model.get_status()
         
         stats = {
             "status": "operational" if model_status['operational'] else "degraded",
-            "model_type": "IntelligentSupportSystem",
+            "model_type": "VectorBasedSupportSystem",
             "model_status": model_status,
             "timestamp": datetime.now().isoformat(),
-            "features": ["classification", "response_generation", "similar_questions"]
+            "features": ["vector_search", "hybrid_search", "llm_generation", "web_scraping", "excel_processing"]
         }
         
         return stats
@@ -280,7 +278,7 @@ async def get_metrics():
 @app.post("/admin/reset-errors")
 async def reset_errors(admin_user = Depends(get_current_admin_user)):
     """Административный endpoint для сброса ошибок"""
-    model_service.reset_errors()
+    vector_model_service.reset_errors()
     return {"status": "errors_reset", "message": "Счетчик ошибок сброшен"}
 
 @app.post("/admin/reset-metrics")

@@ -11,3 +11,6 @@ python-dotenv
 structlog  # Для структурированного логирования
 prometheus-client  # Для метрик (опционально)
 redis  # Для кэширования (опционально)
+aiohttp  # Для веб-скрапинга
+beautifulsoup4  # Для парсинга HTML
+openpyxl  # Для работы с Excel файлами

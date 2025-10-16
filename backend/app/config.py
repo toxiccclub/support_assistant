@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     model_timeout: int = Field(default=60, description="Таймаут для обработки модели в секундах")
     enable_fallback: bool = Field(default=True, description="Включить fallback ответы при ошибках")
     
+    # API Configuration
+    api_key: str = Field(default="sk-Hheb_7mljCgAWSIIyEYbnw", description="OpenAI API key")
+    base_url: str = Field(default="https://llm.t1v.scibox.tech/v1", description="OpenAI API base URL")
+    embedding_model: str = Field(default="bge-m3", description="Embedding model name")
+    llm_model: str = Field(default="Qwen2.5-72B-Instruct-AWQ", description="LLM model name")
+    
     # Мониторинг
     enable_metrics: bool = Field(default=False, description="Включить сбор метрик")
     metrics_port: int = Field(default=9090, description="Порт для метрик")

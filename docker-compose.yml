@@ -16,9 +16,14 @@ services:
       - LOG_FILE_PATH=
       - ADMIN_API_KEY=${ADMIN_API_KEY:-your-secure-admin-key-here}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,https://yourdomain.com}
+      - API_KEY=${API_KEY:-sk-Hheb_7mljCgAWSIIyEYbnw}
+      - BASE_URL=${BASE_URL:-https://llm.t1v.scibox.tech/v1}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-bge-m3}
+      - LLM_MODEL=${LLM_MODEL:-Qwen2.5-72B-Instruct-AWQ}
     volumes:
       - ./backend/app/data:/app/app/data:ro
       - ./logs:/app/logs
+      - ./backend/vector_data:/app/vector_data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

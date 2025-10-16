@@ -11,6 +11,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
+    libxml2-dev \
+    libxslt-dev \
+    libffi-dev \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Create and activate virtual environment
@@ -35,6 +39,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     curl \
+    libxml2 \
+    libxslt1.1 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r appuser && useradd -r -g appuser appuser
 
@@ -48,9 +54,11 @@ WORKDIR /app
 COPY app/ ./app/
 COPY models/ ./models/
 
-# Create logs directory and set permissions
-RUN mkdir -p logs && \
-    chown -R appuser:appuser /app && \
+# Create data directories for vector system
+RUN mkdir -p /app/app/data /app/logs /app/vector_data
+
+# Set permissions for all directories
+RUN chown -R appuser:appuser /app && \
     chmod -R 755 /app
 
 # Switch to non-root user

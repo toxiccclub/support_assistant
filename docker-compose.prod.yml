@@ -19,9 +19,14 @@ services:
       - MAX_REQUEST_SIZE=524288
       - MODEL_TIMEOUT=30
       - MAX_ERRORS=3
+      - API_KEY=${API_KEY}
+      - BASE_URL=${BASE_URL}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-bge-m3}
+      - LLM_MODEL=${LLM_MODEL:-Qwen2.5-72B-Instruct-AWQ}
     volumes:
       - ./backend/app/data:/app/app/data:ro
       - ./logs:/app/logs
+      - ./backend/vector_data:/app/vector_data
     restart: always
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
