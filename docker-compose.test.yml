@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: support_assistant_backend_test
+    environment:
+      - SCIBOX_API_KEY=test-key
+      - SCIBOX_BASE_URL=https://llm.t1v.scibox.tech/v1
+      - LOG_LEVEL=DEBUG
+      - TESTING=true
+    volumes:
+      - ./logs:/app/logs
+      - ./backend/app/data:/app/app/data
+    command: ["python", "-m", "pytest", "tests/", "-v"]
+    networks:
+      - test_network
+
+  frontend-test:
+    image: nginx:alpine
+    container_name: support_assistant_frontend_test
+    ports:
+      - "3001:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - test_network
+
+  # Test database
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: support_assistant_db_test
+    environment:
+      - POSTGRES_DB=test_support_assistant
+      - POSTGRES_USER=test_user
+      - POSTGRES_PASSWORD=test_password
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    networks:
+      - test_network
+
+networks:
+  test_network:
+    driver: bridge
+
+volumes:
+  postgres_test_data:

@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: support_assistant_backend_prod
+    environment:
+      - SCIBOX_API_KEY=${SCIBOX_API_KEY}
+      - SCIBOX_BASE_URL=${SCIBOX_BASE_URL:-https://llm.t1v.scibox.tech/v1}
+      - LOG_LEVEL=${LOG_LEVEL:-WARNING}
+    volumes:
+      - logs:/app/logs
+      - data:/app/app/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - support_network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  frontend:
+    image: nginx:alpine
+    container_name: support_assistant_frontend_prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+    restart: always
+    networks:
+      - support_network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+
+  # Optional: Add a database for persistent storage
+  postgres:
+    image: postgres:15-alpine
+    container_name: support_assistant_db
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-support_assistant}
+      - POSTGRES_USER=${POSTGRES_USER:-support_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-secure_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - support_network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+networks:
+  support_network:
+    driver: bridge
+
+volumes:
+  logs:
+  data:
+  postgres_data:

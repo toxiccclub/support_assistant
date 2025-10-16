@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: support_assistant_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - SCIBOX_API_KEY=${SCIBOX_API_KEY:-sk-Hheb_7mljCgAWSIIyEYbnw}
+      - SCIBOX_BASE_URL=${SCIBOX_BASE_URL:-https://llm.t1v.scibox.tech/v1}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./logs:/app/logs
+      - ./backend/app/data:/app/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - support_network
+
+  frontend:
+    image: nginx:alpine
+    container_name: support_assistant_frontend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - support_network
+
+networks:
+  support_network:
+    driver: bridge
+
+volumes:
+  logs:
+  data:

@@ -11,7 +11,7 @@ import asyncio
 
 
 # Импорт модели
-from models.model_v2_2 import IntelligentSupportSystem
+from models.model_final import IntelligentSupportSystem
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
